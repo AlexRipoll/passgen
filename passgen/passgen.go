@@ -4,7 +4,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"flag"
+	"fmt"
 	"math/big"
+	"os"
 	"strings"
 )
 
@@ -49,39 +51,50 @@ type Custom struct {
 
 func New() (string, error) {
 	var p Password
-	flag.StringVar(&p.Scheme.Name, "s", "base64", "the encoding scheme to use for generating the password")
+
 	flag.IntVar(&p.Length, "l", 8, "the desired password length")
-	flag.IntVar(&p.Capitals, "C", 0, "the desired number of upper-case letters in the password")
-	flag.IntVar(&p.Digits, "N", 0, "the desired number of digits in the password")
-	flag.IntVar(&p.SpecialChars, "S", 0, "the desired number of special characters in the password")
 
-	flag.Parse()
+	scheme := flag.NewFlagSet("scheme", flag.ExitOnError)
+	scheme.IntVar(&p.Length, "l", 8, "the desired password length")
+	scheme.StringVar(&p.Scheme.Name, "s", "base64", "the encoding scheme to use for generating the password")
 
-	if err := p.schemeValidation(); err != nil {
-		return "", err
-	}
-
-	if p.Length <= 0 {
-		return "", ErrInvalidLength
-	}
+	form := flag.NewFlagSet("form", flag.ExitOnError)
+	form.IntVar(&p.Length, "l", 8, "the desired password length")
+	form.IntVar(&p.Capitals, "C", 0, "the desired number of upper-case letters in the password")
+	form.IntVar(&p.Digits, "D", 0, "the desired number of digits in the password")
+	form.IntVar(&p.SpecialChars, "S", 0, "the desired number of special characters in the password")
 
 	var pass string
 	var err error
-	// if none of the specific flags are set then generate a totally random password.
-	// TODO change to subcommands
-	if p.Capitals == 0 && p.Digits == 0 && p.SpecialChars == 0 {
-		pass, err = generate(p.Scheme, p.Length)
-		if err != nil {
-			return "", err
+
+	switch os.Args[1] {
+	case "form":
+		form.Parse(os.Args[2:])
+		if p.Length <= 0 {
+			return "", ErrInvalidLength
 		}
-	} else {
 		pass, err = generateCustom(p.Length, p.Capitals, p.Digits, p.SpecialChars)
 		if err != nil {
-			return "", err
+			break
 		}
+	case "scheme":
+		scheme.Parse(os.Args[2:])
+		if p.Length <= 0 {
+			return "", ErrInvalidLength
+		}
+		if err = p.schemeValidation(); err != nil {
+			break
+		}
+		pass, err = generate(p.Scheme, p.Length)
+		if err != nil {
+			break
+		}
+	default:
+		fmt.Println("unknown subcommand")
+		os.Exit(1)
 	}
 
-	return pass, nil
+	return pass, err
 }
 
 func (p *Password) schemeValidation() error {
