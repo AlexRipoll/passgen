@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// TODO REFACTOR: remove duplicated code
 // TODO add goroutines for selecting characters more efficiently
 
 var (
@@ -69,6 +68,7 @@ func New() (string, error) {
 	var pass string
 	var err error
 	// if none of the specific flags are set then generate a totally random password.
+	// TODO change to subcommands
 	if p.Capitals == 0 && p.Digits == 0 && p.SpecialChars == 0 {
 		pass, err = generate(p.Scheme, p.Length)
 		if err != nil {
@@ -98,18 +98,9 @@ func (p *Password) schemeValidation() error {
 
 func generate(scheme Scheme, length int) (string, error) {
 
-	b := make([]byte, length)
-	_, err := rand.Read(b)
+	b, err := selector(scheme.Characters, length)
 	if err != nil {
 		return "", err
-	}
-	for i := 0; i < length; i++ {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(scheme.Characters))))
-		if err != nil {
-			return "", err
-		}
-
-		b[i] = scheme.Characters[num.Int64()]
 	}
 
 	return string(b), nil
@@ -152,6 +143,7 @@ func generateCustom(length, caps, nums, speChars int) (string, error) {
 		chars = append(chars, res...)
 	}
 
+	// TODO move to func
 	mix := make([]byte, len(chars))
 	it := len(chars) - 1
 	for i := 0; i < it; i++ {
