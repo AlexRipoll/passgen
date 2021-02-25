@@ -74,7 +74,7 @@ func New() (string, error) {
 		if err != nil {
 			return "", err
 		}
-	}else {
+	} else {
 		pass, err = generateCustom(p.Length, p.Capitals, p.Digits, p.SpecialChars)
 		if err != nil {
 			return "", err
@@ -143,20 +143,10 @@ func generateCustom(length, caps, nums, speChars int) (string, error) {
 		chars = append(chars, res...)
 	}
 
-	// TODO move to func
-	mix := make([]byte, len(chars))
-	it := len(chars) - 1
-	for i := 0; i < it; i++ {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-		if err != nil {
-			return "", err
-		}
-		mix[i] = chars[num.Int64()]
-		chars[num.Int64()] = chars[len(chars) - 1]
-		chars[len(chars) -1 ] = 0
-		chars = chars[:len(chars) -1]
+	mix, err := mixer(chars)
+	if err != nil {
+		return "", err
 	}
-	mix[len(mix) - 1] = chars[0]
 
 	return string(mix), nil
 }
@@ -177,6 +167,24 @@ func selector(alphabet string, amount int) ([]byte, error) {
 		b[i] = alphabet[num.Int64()]
 	}
 	return b, nil
+}
+
+func mixer(stack []byte) ([]byte, error) {
+	mix := make([]byte, len(stack))
+	it := len(stack) - 1
+	for i := 0; i < it; i++ {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(stack))))
+		if err != nil {
+			return nil, err
+		}
+		mix[i] = stack[num.Int64()]
+		stack[num.Int64()] = stack[len(stack)-1]
+		stack[len(stack)-1] = 0
+		stack = stack[:len(stack)-1]
+	}
+	mix[len(mix)-1] = stack[0]
+
+	return mix, nil
 }
 
 func max(input1, input2 int) int {
