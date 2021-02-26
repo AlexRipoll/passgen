@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 // TODO add goroutines for selecting characters more efficiently
@@ -24,6 +26,11 @@ var (
 	upper   = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	digits  = "0123456789"
 	special = " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+)
+
+var (
+	wg    = &sync.WaitGroup{}
+	mutex = &sync.Mutex{}
 )
 
 var (
@@ -45,11 +52,13 @@ type Scheme struct {
 	Characters string
 }
 
-type Custom struct {
-	Amount int
+type Form struct {
+	Alphabet string
+	Amount   int
 }
 
 func New() (string, error) {
+	start := time.Now()
 	var p Password
 
 	flag.IntVar(&p.Length, "l", 8, "the desired password length")
@@ -94,6 +103,8 @@ func New() (string, error) {
 		os.Exit(1)
 	}
 
+	elapsed := time.Since(start)
+	fmt.Println(elapsed)
 	return pass, err
 }
 
@@ -123,39 +134,41 @@ func generateCustom(length, caps, nums, speChars int) (string, error) {
 
 	requirementLength := caps + nums + speChars
 
-	passLength := max(length, requirementLength)
-	chars := make([]byte, passLength-1)
+	var chars []byte
+	forms := []Form{{upper, caps}, {digits, nums}, {special, speChars}}
+	for _, v := range forms {
+		wg.Add(1)
+		go func(form Form) error {
+			if form.Amount > 0 {
+				res, err := selector(form.Alphabet, form.Amount)
+				if err != nil {
+					return err
+				}
+				mutex.Lock()
+				chars = append(chars, res...)
+				mutex.Unlock()
+			}
+			wg.Done()
+			return nil
+		}(v)
+	}
+	wg.Add(1)
+	go func() error {
+		if length > requirementLength {
+			remain := length - requirementLength
+			res, err := selector(lower, remain)
+			if err != nil {
+				return err
+			}
+			mutex.Lock()
+			chars = append(chars, res...)
+			mutex.Unlock()
+		}
+		wg.Done()
+		return nil
+	}()
 
-	if caps > 0 {
-		res, err := selector(upper, caps)
-		if err != nil {
-			return "", err
-		}
-		chars = append(chars, res...)
-	}
-	if nums > 0 {
-		res, err := selector(digits, nums)
-		if err != nil {
-			return "", err
-		}
-		chars = append(chars, res...)
-	}
-	if speChars > 0 {
-		res, err := selector(special, speChars)
-		if err != nil {
-			return "", err
-		}
-		chars = append(chars, res...)
-	}
-	if length > requirementLength {
-		remain := length - requirementLength
-		res, err := selector(lower, remain)
-		if err != nil {
-			return "", err
-		}
-		chars = append(chars, res...)
-	}
-
+	wg.Wait()
 	mix, err := mixer(chars)
 	if err != nil {
 		return "", err
